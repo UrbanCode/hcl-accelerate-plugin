@@ -11,10 +11,11 @@ import java.util.List;
 public class TriggerJob extends AbstractSecuredAction {
 
     protected void run(AbstractSecuredAction.ParamObj paramObj) {
-        TriggerJobParamObj triggerJobParamObj = (TriggerJobParamObj)paramObj;
+        TriggerJobParamObj triggerJobParamObj = (TriggerJobParamObj) paramObj;
 
         CloudWorkListener2 cwl = new CloudWorkListener2();
-        cwl.callSecured(triggerJobParamObj.socket, triggerJobParamObj.event, triggerJobParamObj.getJenkinsAuthenticationError(), triggerJobParamObj.args);
+        cwl.callSecured(triggerJobParamObj.socket, triggerJobParamObj.event, 
+                triggerJobParamObj.getJenkinsAuthenticationError(), triggerJobParamObj.args);
     }
 
     public class TriggerJobParamObj extends AbstractSecuredAction.ParamObj {

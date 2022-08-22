@@ -3,9 +3,10 @@ package com.hcl.devops.connect.Endpoints;
 import jenkins.model.Jenkins;
 
 import java.net.URL;
-
+import com.hcl.devops.connect.CloudPublisher;
 import com.hcl.devops.connect.DevOpsGlobalConfiguration;
-
+import com.hcl.devops.connect.Entry;
+import java.util.List;
 import java.net.MalformedURLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,47 +23,52 @@ public class EndpointsAccelerate implements IEndpoints {
     private static final String RELEASE_EVENTS_API_PATH = "/release-events-api/";
     private static final String DOTS_PATH = "/api/v1/dots";
     private static final String PIPELINES_PATH = "/pipelines/";
+    private static final String GRAPHQL_PATH = "/release-events-api/graphql/";
 
-    public String getReleaseEvensApiEndpoint() {
-        return getBaseUrl() + RELEASE_EVENTS_API_PATH;
+    public String getReleaseEvensApiEndpoint(Entry entry) {
+        return getBaseUrl(entry) + RELEASE_EVENTS_API_PATH;
     }
 
-    public String getSyncApiEndpoint() {
-        return getBaseUrl() + REPORTING_SYNC_PATH;
+    public String getGraphqlApiEndpoint(Entry entry) {
+        return getBaseUrl(entry) + GRAPHQL_PATH;
     }
 
-    public String getDotsEndpoint() {
-        return getBaseUrl() + DOTS_PATH;
+    public String getSyncApiEndpoint(Entry entry) {
+        return getBaseUrl(entry) + REPORTING_SYNC_PATH;
+    }
+
+    public String getDotsEndpoint(Entry entry) {
+        return getBaseUrl(entry) + DOTS_PATH;
     }
 
     public String getSyncApiEndpoint(String baseUrl) {
-        baseUrl = removeTrailingSlash(baseUrl);
+        baseUrl = CloudPublisher.removeTrailingSlash(baseUrl);
         return baseUrl + REPORTING_SYNC_PATH;
     }
 
-    public String getPipelinesEndpoint() {
-        return getBaseUrl() + PIPELINES_PATH;
+    public String getPipelinesEndpoint(Entry entry) {
+        return getBaseUrl(entry) + PIPELINES_PATH;
     }
 
-    public String getQualityDataEndpoint() {
-        return getBaseUrl() + QUALITY_DATA_PATH;
+    public String getQualityDataEndpoint(Entry entry) {
+        return getBaseUrl(entry) + QUALITY_DATA_PATH;
     }
 
-    public String getQualityDataRawEndpoint() {
-        return getBaseUrl() + QUALITY_DATA_RAW_PATH;
+    public String getQualityDataRawEndpoint(Entry entry) {
+        return getBaseUrl(entry) + QUALITY_DATA_RAW_PATH;
     }
 
-    public String getSyncStoreEndpoint() {
+    public String getSyncStoreEndpoint(Entry entry) {
         return SYNC_STORE_ENPOINT;
     }
 
-    public String getConnectEndpoint() {
+    public String getConnectEndpoint(Entry entry) {
         return CONNECT_ENPOINT;
     }
 
-    public String getAccelerateHostname() {
+    public String getAccelerateHostname(Entry entry) {
         try {
-            String url = getBaseUrl();
+            String url = getBaseUrl(entry);
             URL urlObj = new URL(url);
             return urlObj.getHost();
         } catch (MalformedURLException e) {
@@ -71,14 +77,8 @@ public class EndpointsAccelerate implements IEndpoints {
         return "";
     }
 
-    private String getBaseUrl() {
-        return removeTrailingSlash(Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getBaseUrl());
+    private String getBaseUrl(Entry entry) {
+        return CloudPublisher.removeTrailingSlash(entry.getBaseUrl());
     }
-
-    private String removeTrailingSlash(String url) {
-        if (url.endsWith("/")) {
-            url = url.substring(0, url.length() - 1);
-        }
-        return url;
-    }
+    
 }
