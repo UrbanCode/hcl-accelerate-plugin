@@ -94,10 +94,9 @@ public final class Entry implements Describable<Entry> {
         @RequirePOST
         public FormValidation doTestConnections(@QueryParameter("syncId") String syncId,
                 @QueryParameter("syncToken") String syncToken,
-                @QueryParameter("baseUrl") String baseUrl,
-                @QueryParameter("apiToken") String apiToken) {
+                @QueryParameter("baseUrl") String baseUrl) {
             try {
-                String connected = CloudPublisher.testConnection(syncId, syncToken, baseUrl, apiToken);
+                boolean connected = CloudPublisher.testConnection(syncId, syncToken, baseUrl);
                 List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class)
                         .getEntries();
                 Entry finalEntry = null;
@@ -106,12 +105,12 @@ public final class Entry implements Describable<Entry> {
                         finalEntry = entry;
                     }
                 }
-                if (connected.equals("successfull connection")) {
+                if (connected) {
                     boolean amqpConnected = ConnectComputerListener.isRabbitConnected(finalEntry);
 
-                    String rabbitMessage = "Not connected to RabbitMQ. Unable to run Jenkins jobs from Accelerate.\n WARNING:Check the port number correctly.\n If you use Kubernetes, the default port that is exposed is 31672."
+                    String rabbitMessage = "Not connected to RabbitMQ. Unable to run Jenkins jobs from "
                             + finalEntry.getBaseUrl();
-                    if (amqpConnected && connected.equals("successfull connection")) {
+                    if (amqpConnected) {
                         if (StringUtils.isNotEmpty(finalEntry.getRabbitMQHost())) {
                             rabbitMessage = "Connected to RabbitMQ ( " + finalEntry.getRabbitMQHost()
                                     + " ) successfully. Ready to run Jenkins jobs from " + finalEntry.getBaseUrl();
@@ -123,7 +122,8 @@ public final class Entry implements Describable<Entry> {
 
                     return FormValidation.ok("Successful connection to Accelerate Services.\n" + rabbitMessage);
                 } else {
-                    return FormValidation.error(connected);
+                    return FormValidation.error("Could not connect to " + finalEntry.getBaseUrl()
+                            + ".  Please check your URL and credentials provided.");
                 }
             } catch (Exception e) {
                 if (e.getMessage().contains("Index") && e.getMessage().contains("out of bounds for length")) {
