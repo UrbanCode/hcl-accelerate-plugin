@@ -36,6 +36,7 @@ import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
 
 import java.io.IOException;
+import java.util.List;
 
 @Extension
 public class CloudGraphListener implements GraphListener {
@@ -49,7 +50,7 @@ public class CloudGraphListener implements GraphListener {
 
         try {
             if (execution.getOwner().getExecutable() instanceof WorkflowRun) {
-                workflowRun = (WorkflowRun)(execution.getOwner().getExecutable());
+                workflowRun = (WorkflowRun) (execution.getOwner().getExecutable());
                 listener = execution.getOwner().getListener();
             }
         } catch (IOException e) {
@@ -66,10 +67,14 @@ public class CloudGraphListener implements GraphListener {
         boolean isEndNode = node.getClass().getName().equals("org.jenkinsci.plugins.workflow.cps.nodes.StepEndNode");
         boolean isPauseNode = PauseAction.isPaused(node);
 
-        if ((isStartNode || isEndNode || isPauseNode) && Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).isConfigured()) {
-            JenkinsPipelineStatus status = new JenkinsPipelineStatus(workflowRun, cloudCause, node, listener, isStartNode, isPauseNode);
-            JSONObject statusUpdate = status.generate(false);
-            CloudPublisher.uploadJobStatus(statusUpdate);
+        JenkinsPipelineStatus status = new JenkinsPipelineStatus(workflowRun, cloudCause, node, listener, isStartNode,
+                isPauseNode);
+        List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+        for (Entry entry : entries) {
+            if ((isStartNode || isEndNode || isPauseNode) && entry.isConfigured()) {
+                JSONObject statusUpdate = status.generate(false, entry);
+                CloudPublisher.uploadJobStatus(statusUpdate, entry);
+            }
         }
     }
 
@@ -77,9 +82,9 @@ public class CloudGraphListener implements GraphListener {
         if (workflowRun != null) {
             List<Cause> causes = workflowRun.getCauses();
 
-            for(Cause cause : causes) {
+            for (Cause cause : causes) {
                 if (cause instanceof CloudCause ) {
-                    return (CloudCause)cause;
+                    return (CloudCause) cause;
                 }
             }
         }

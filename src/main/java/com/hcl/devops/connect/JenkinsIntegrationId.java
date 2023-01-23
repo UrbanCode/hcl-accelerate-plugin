@@ -5,14 +5,15 @@ import com.hcl.devops.connect.DevOpsGlobalConfiguration;
 import org.jenkinsci.plugins.uniqueid.IdStore;
 
 import jenkins.model.Jenkins;
+import java.util.List;
 
 public class JenkinsIntegrationId {
-    public JenkinsIntegrationId () {
+    public JenkinsIntegrationId() {
 
     }
 
-    public String getIntegrationId() {
-        String result = getSyncId() + "_" + getJenkinsId();
+    public String getIntegrationId(int instanceNum) {
+        String result = getSyncId(instanceNum) + "_" + getJenkinsId();
         return result;
     }
 
@@ -28,7 +29,8 @@ public class JenkinsIntegrationId {
         return jenkinsId;
     }
 
-    private String getSyncId() {
-        return Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getSyncId();
+    private String getSyncId(int instanceNum) {
+        List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+        return entries.get(instanceNum).getSyncId();
     }
 }

@@ -18,50 +18,56 @@ import com.hcl.devops.connect.Endpoints.EndpointManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import java.util.List;
 @Extension
 public class ConnectComputerListener extends ComputerListener {
 	public static final Logger log = LoggerFactory.getLogger(ConnectComputerListener.class);
-    private String logPrefix= "[HCL Accelerate] ConnectComputerListener#";
 
     private static CloudSocketComponent cloudSocketInstance;
     private static ReconnectExecutor reconnectExecutor;
 
-    private static void setCloudSocketComponent( CloudSocketComponent comp ) {
+    public static boolean isRabbitConnected(Entry entry) {
+        return cloudSocketInstance.isAMQPConnected(entry);
+    }
+
+    private static void setCloudSocketComponent(CloudSocketComponent comp) {
         cloudSocketInstance = comp;
     }
 
     @Override
     public void onOnline(Computer c) {
-        if ( c instanceof jenkins.model.Jenkins.MasterComputer && Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).isConfigured()) {
-            logPrefix= logPrefix + "onOnline ";
-            String url = getConnectUrl();
+        
+        List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+        for (Entry entry : entries) {
+            if (c instanceof jenkins.model.Jenkins.MasterComputer && entry.isConfigured()) {
+                String url = getConnectUrl(entry);
+                String logPrefix = "[HCL Accelerate " + entry.getBaseUrl()
+                        + "] ConnectComputerListener#onOnline - ";
+                CloudWorkListener listener = new CloudWorkListener();
+                ConnectComputerListener.setCloudSocketComponent(new CloudSocketComponent(listener, url));
 
-            CloudWorkListener listener = new CloudWorkListener();
-
-            ConnectComputerListener.setCloudSocketComponent(new CloudSocketComponent(listener, url));
-
-            try {
-                log.info(logPrefix + "Connecting to Cloud Services...");
-                getCloudSocketInstance().connectToCloudServices();
-            } catch (Exception e) {
-                log.error(logPrefix + "Exception caught while connecting to Cloud Services: " + e);
-                e.printStackTrace();
-            }
+                try {
+                    log.info(logPrefix + "Connecting to Cloud Services...");
+                    getCloudSocketInstance().connectToCloudServices(entry);
+                } catch (Exception e) {
+                    log.error(logPrefix + "Exception caught while connecting to Cloud Services: " + e);
+                    e.printStackTrace();
+                }
 
             // Synchronized to protect lazy initalization of static variable
-            synchronized(this) {
-                if(reconnectExecutor == null) {
+            synchronized (this) {
+                if (reconnectExecutor == null) {
                     reconnectExecutor = new ReconnectExecutor(cloudSocketInstance);
                     reconnectExecutor.startReconnectExecutor();
+                }
                 }
             }
         }
     }
 
-    private String getConnectUrl() {
+    private String getConnectUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getConnectEndpoint();
+        return em.getConnectEndpoint(entry);
     }
 
     public CloudSocketComponent getCloudSocketInstance() {

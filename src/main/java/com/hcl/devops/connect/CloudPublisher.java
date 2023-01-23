@@ -47,7 +47,8 @@ import org.apache.http.conn.ssl.AllowAllHostnameVerifier;
 import org.apache.http.StatusLine;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.ssl.TrustStrategy;
-
+import org.apache.commons.lang.StringUtils;
+import java.util.List;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -58,10 +59,10 @@ import java.security.KeyStoreException;
 import javax.net.ssl.SSLContext;
 
 import org.apache.http.HttpEntity;
+import java.util.*;
 
 public class CloudPublisher  {
 	public static final Logger log = LoggerFactory.getLogger(CloudPublisher.class);
-	private static String logPrefix= "[HCL Accelerate] CloudPublisher#";
 
     private final static String JENKINS_JOB_ENDPOINT_URL = "api/v1/jenkins/jobs";
     private final static String JENKINS_JOB_STATUS_ENDPOINT_URL = "api/v1/jenkins/jobStatus";
@@ -81,12 +82,14 @@ public class CloudPublisher  {
                 try {
                     SSLContextBuilder builder = new SSLContextBuilder();
                     builder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
-                    SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build(), new AllowAllHostnameVerifier());
+                    SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build(), 
+                            new AllowAllHostnameVerifier());
                     RequestConfig config = RequestConfig.custom()
-                        .setConnectTimeout(requestTimeoutSeconds * 1000)
-                        .setConnectionRequestTimeout(requestTimeoutSeconds * 1000)
-                        .setSocketTimeout(requestTimeoutSeconds * 1000).build();
-                    httpClient = HttpClients.custom().setSSLSocketFactory(sslsf).setDefaultRequestConfig(config).build();
+                            .setConnectTimeout(requestTimeoutSeconds * 1000)
+                            .setConnectionRequestTimeout(requestTimeoutSeconds * 1000)
+                            .setSocketTimeout(requestTimeoutSeconds * 1000).build();
+                    httpClient = HttpClients.custom().setSSLSocketFactory(sslsf).setDefaultRequestConfig(config)
+                            .build();
                 } catch (NoSuchAlgorithmException nsae) {
                     nsae.printStackTrace();
                 } catch (KeyManagementException kme) {
@@ -104,11 +107,12 @@ public class CloudPublisher  {
             if (acceptAllCerts) {
                 try {
                     TrustStrategy acceptingTrustStrategy = new TrustStrategy() {
-                        public boolean isTrusted(X509Certificate[] certificate,  String authType) {
+                        public boolean isTrusted(X509Certificate[] certificate, String authType) {
                             return true;
                         }
                     };
-                    SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy).build();
+                    SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy)
+                            .build();
 
                     asyncHttpClient = HttpAsyncClients.custom()
                             .setSSLHostnameVerifier(SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER)
@@ -127,9 +131,9 @@ public class CloudPublisher  {
         }
     }
 
-    private static String getSyncApiUrl() {
+    private static String getSyncApiUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getSyncApiEndpoint();
+        return em.getSyncApiEndpoint(entry);
     }
 
     private static String getSyncApiUrl(String baseUrl) {
@@ -137,36 +141,41 @@ public class CloudPublisher  {
         return em.getSyncApiEndpoint(baseUrl);
     }
 
-    public static String getQualityDataUrl() {
+    public static String getQualityDataUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getQualityDataEndpoint();
+        return em.getQualityDataEndpoint(entry);
     }
 
-    private static String getQualityDataRawUrl() {
+    private static String getQualityDataRawUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getQualityDataRawEndpoint();
+        return em.getQualityDataRawEndpoint(entry);
     }
 
-    private static String getBuildUploadUrl() {
+    private static String getBuildUploadUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getReleaseEvensApiEndpoint() + BUILD_UPLOAD_URL;
+        return em.getReleaseEvensApiEndpoint(entry) + BUILD_UPLOAD_URL;
     }
 
-    private static String getDeploymentUploadUrl() {
+    private static String getDeploymentUploadUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getReleaseEvensApiEndpoint() + DEPLOYMENT_UPLOAD_URL;
+        return em.getReleaseEvensApiEndpoint(entry) + DEPLOYMENT_UPLOAD_URL;
     }
 
-    private static String getDotsUrl() {
+    private static String getDotsUrl(Entry entry) {
         EndpointManager em = new EndpointManager();
-        return em.getDotsEndpoint();
+        return em.getDotsEndpoint(entry);
+    }
+
+    private static String getGraphqlUrl(Entry entry) {
+        EndpointManager em = new EndpointManager();
+        return em.getGraphqlApiEndpoint(entry);
     }
 
     /**
      * Upload the build information to Sync API - API V1.
      */
-    public static void uploadJobInfo(JSONObject jobJson) {
-        String url = CloudPublisher.getSyncApiUrl() + JENKINS_JOB_ENDPOINT_URL;
+    public static void uploadJobInfo(JSONObject jobJson, Entry entry) {
+        String url = CloudPublisher.getSyncApiUrl(entry) + JENKINS_JOB_ENDPOINT_URL;
 
         JSONArray payload = new JSONArray();
         payload.add(jobJson);
@@ -175,87 +184,110 @@ public class CloudPublisher  {
         System.out.println(url);
         System.out.println(jobJson.toString());
 
-        CloudPublisher.postToSyncAPI(url, payload.toString());
+        CloudPublisher.postToSyncAPI(url, payload.toString(), entry);
     }
 
-    public static void uploadJobStatus(JSONObject jobStatus) {
-        String url = CloudPublisher.getSyncApiUrl() + JENKINS_JOB_STATUS_ENDPOINT_URL;
-        CloudPublisher.postToSyncAPI(url, jobStatus.toString());
+    public static void uploadJobStatus(JSONObject jobStatus, Entry entry) {
+        String url = CloudPublisher.getSyncApiUrl(entry) + JENKINS_JOB_STATUS_ENDPOINT_URL;
+        CloudPublisher.postToSyncAPI(url, jobStatus.toString(), entry);
     }
 
-    public static String uploadBuild(String payload) throws Exception {
+    public static String uploadBuild(String payload, Entry entry) throws Exception {
         CloudPublisher.ensureHttpClientInitialized();
-        String localLogPrefix= logPrefix + "uploadBuild ";
         String resStr = "";
-        String url = CloudPublisher.getBuildUploadUrl();
+        String url = CloudPublisher.getBuildUploadUrl(entry);
         CloseableHttpResponse response = null;
+        String logPrefix = "[HCL Accelerate " + entry.getBaseUrl() + "] CloudPublisher#uploadBuild";
 
         try {
             HttpPost postMethod = new HttpPost(url);
-            attachHeaders(postMethod);
+            attachHeaders(postMethod, entry);
             postMethod.setHeader("Content-Type", "application/json");
-            postMethod.setHeader("Authorization", "UserAccessKey " + Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getApiToken());
+            postMethod.setHeader("Authorization", "UserAccessKey " + entry.getApiToken());
             postMethod.setEntity(new StringEntity(payload));
 
             response = httpClient.execute(postMethod);
             resStr = EntityUtils.toString(response.getEntity());
             if (response.getStatusLine().toString().contains("200")) {
-                log.info(localLogPrefix + "Uploaded Build successfully");
+                log.info(logPrefix + " Uploaded Build successfully");
             } else {
-                throw new Exception("Bad response code when uploading Build: " + response.getStatusLine() + " - " + resStr);
+                throw new Exception(logPrefix + "Bad response code when uploading Build: " + response.getStatusLine() 
+                        + " - " + resStr);
             }
         } finally {
             if (response != null) {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close uploadBuild response");
+                    log.error(logPrefix + " Could not close uploadBuild response");
                 }
             }
         }
         return resStr;
     }
 
-    public static String uploadDeployment(String payload) throws Exception {
+    public static String uploadDeployment(String payload, Entry entry) throws Exception {
         CloudPublisher.ensureHttpClientInitialized();
-        String localLogPrefix= logPrefix + "uploadDeployment ";
         String resStr = "";
-        String url = CloudPublisher.getDeploymentUploadUrl();
+        String url = CloudPublisher.getDeploymentUploadUrl(entry);
         CloseableHttpResponse response = null;
+        String logPrefix = "[HCL Accelerate " + entry.getBaseUrl() + "] CloudPublisher#uploadDeployment";
 
         try {
             HttpPost postMethod = new HttpPost(url);
-            attachHeaders(postMethod);
+            attachHeaders(postMethod, entry);
             postMethod.setHeader("Content-Type", "application/json");
-            postMethod.setHeader("Authorization", "UserAccessKey " + Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getApiToken());
+            postMethod.setHeader("Authorization", "UserAccessKey " + entry.getApiToken());
             postMethod.setEntity(new StringEntity(payload));
 
             response = httpClient.execute(postMethod);
             resStr = EntityUtils.toString(response.getEntity());
             if (response.getStatusLine().toString().contains("200")) {
-                log.info(localLogPrefix + "Uploaded Deployment successfully");
+                log.info(logPrefix + " Uploaded Deployment successfully");
             } else {
-                throw new Exception("Bad response code when uploading Deployment: " + response.getStatusLine() + " - " + resStr);
+                throw new Exception(logPrefix + "Bad response code when uploading Deployment: " 
+                        + response.getStatusLine() + " - " + resStr);
             }
         } finally {
             if (response != null) {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close uploadDeployment response");
+                    log.error(logPrefix + " Could not close uploadDeployment response");
                 }
             }
         }
         return resStr;
     }
 
-    public static String checkGate(String pipelineId, String stageName, String versionId) throws Exception {
-        CloudPublisher.ensureHttpClientInitialized();
-        String localLogPrefix= logPrefix + "checkGate ";
-        String resStr = "";
-        String url = CloudPublisher.getDotsUrl();
-        CloseableHttpResponse response = null;
+    public static List<Entry> getFinalEntriesList(String jobString, String instanceBaseUrl, List<Entry> entries) {
+        List<Entry> finalEntriesList = new ArrayList<>();
+        if (StringUtils.isNotEmpty(instanceBaseUrl)) {
+            for (Entry entry : entries) {
+                if (removeTrailingSlash(instanceBaseUrl).equals(removeTrailingSlash(entry.getBaseUrl()))) {
+                    finalEntriesList.add(entry);
+                    break;
+                }
+            }
+            if (finalEntriesList.size() == 0) {
+                log.info("Using default: " + jobString + "to All HCL Accelerate Instances.");
+                return entries;
+            }
+        } else {
+            log.info("HCL Accelerate Instance BaseUrl is not provided for " + jobString + ".  Using default: " + jobString
+                    + "to All HCL Accelerate Instances.");
+            return entries;
+        }
+        return finalEntriesList;
+    }
 
+    public static String checkGate(Entry entry, String pipelineId, String stageName, String versionId)
+            throws Exception {
+        CloudPublisher.ensureHttpClientInitialized();
+        String resStr = "";
+        String url = CloudPublisher.getDotsUrl(entry);
+        CloseableHttpResponse response = null;
+        String logPrefix = "[HCL Accelerate " + entry.getBaseUrl() + "] CloudPublisher#checkGate";
         try {
             URIBuilder builder = new URIBuilder(url);
             builder.setParameter("pipelineId", pipelineId);
@@ -264,36 +296,72 @@ public class CloudPublisher  {
             URI uri = builder.build();
             System.out.println("TEST gates url: " + uri.toString());
             HttpGet getMethod = new HttpGet(uri);
-            attachHeaders(getMethod);
+            attachHeaders(getMethod, entry);
             getMethod.setHeader("Accept", "application/json");
-            getMethod.setHeader("Authorization", "UserAccessKey " + Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getApiToken());
+            getMethod.setHeader("Authorization", "UserAccessKey " + entry.getApiToken());
 
             response = httpClient.execute(getMethod);
             resStr = EntityUtils.toString(response.getEntity());
             if (response.getStatusLine().toString().contains("200")) {
-                log.info(localLogPrefix + "Gates Checked Successfully");
+                log.info(logPrefix + " Gates Checked Successfully");
             } else {
-                throw new Exception("Bad response code when uploading Deployment: " + response.getStatusLine() + " - " + resStr);
+                throw new Exception(logPrefix + "Bad response code when uploading Deployment: " 
+                        + response.getStatusLine() + " - " + resStr);
             }
         } finally {
             if (response != null) {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close uploadDeployment response");
+                    log.error(logPrefix + " Could not close uploadDeployment response");
                 }
             }
         }
         return resStr;
     }
 
+    public static Boolean isPipeline(Entry entry, String pipelineId) throws Exception {
+        CloudPublisher.ensureHttpClientInitialized();
+        String resStr = "";
+        String url = CloudPublisher.getGraphqlUrl(entry);
+        CloseableHttpResponse response = null;
+        try {
+            URIBuilder builder = new URIBuilder(url);
+            builder.setParameter("query", "{pipelineById(pipelineId: \"" + pipelineId + "\"){_id}}");
+            URI uri = builder.build();
+            System.out.println("TEST gates url: " + uri.toString());
+            HttpGet getMethod = new HttpGet(uri);
+            attachHeaders(getMethod, entry);
+            getMethod.setHeader("Accept", "application/json");
+            getMethod.setHeader("Authorization", "UserAccessKey " + entry.getApiToken());
+
+            response = httpClient.execute(getMethod);
+            resStr = EntityUtils.toString(response.getEntity());
+            log.info(resStr);
+            if (resStr.contains(pipelineId)) {
+                return true;
+            } else {
+                return false;
+            }
+        } finally {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (Exception e) {
+                    log.error("[HCL Accelerate " + entry.getBaseUrl()
+                            + "] CloudPublisher#isPipeline Could not close isPipeline response");
+                }
+            }
+        }
+    }
+
+
     public static boolean uploadQualityData(HttpEntity entity, String url, String userAccessKey) throws Exception {
         CloudPublisher.ensureHttpClientInitialized();
-        String localLogPrefix= logPrefix + "uploadQualityData ";
         String resStr = "";
         CloseableHttpResponse response = null;
         boolean success = false;
-
+        String logPrefix = "[HCL Accelerate] CloudPublisher#uploadQualityData";
         try {
             HttpPost postMethod = new HttpPost(url);
             postMethod.setHeader("Authorization", "UserAccessKey " + userAccessKey);
@@ -302,7 +370,7 @@ public class CloudPublisher  {
             response = httpClient.execute(postMethod);
             resStr = EntityUtils.toString(response.getEntity());
             if (response.getStatusLine().toString().contains("200")) {
-                log.info(localLogPrefix + "Upload Quality Data successfully");
+                log.info(logPrefix + " Upload Quality Data successfully");
                 success = true;
             }
             return success;
@@ -313,69 +381,70 @@ public class CloudPublisher  {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close uploadQualityData response");
+                    log.error(logPrefix + " Could not close uploadQualityData response");
                 }
             }
             if (!success) {
-                throw new Exception("Bad response code when uploading Quality Data: " + status + " - " + resStr);
+                throw new Exception(logPrefix + "Bad response code when uploading Quality Data: " + status + " - " + resStr);
             }
         }
     }
 
-    public static void uploadQualityDataRaw(String payload) throws Exception {
+    public static void uploadQualityDataRaw(Entry entry, String payload) throws Exception {
         CloudPublisher.ensureHttpClientInitialized();
-        String localLogPrefix= logPrefix + "uploadMetricDataRaw ";
         String resStr = "";
-        String url = CloudPublisher.getQualityDataRawUrl();
+        String url = CloudPublisher.getQualityDataRawUrl(entry);
         CloseableHttpResponse response = null;
-
+        String logPrefix = "[HCL Accelerate " + entry.getBaseUrl() + "] CloudPublisher#uploadMetricDataRaw";
         try {
             HttpPost postMethod = new HttpPost(url);
-            attachHeaders(postMethod);
+            attachHeaders(postMethod, entry);
             postMethod.setHeader("Content-Type", "application/json");
-            postMethod.setHeader("Authorization", "UserAccessKey " + Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getApiToken());
+            postMethod.setHeader("Authorization", "UserAccessKey " + entry.getApiToken());
             postMethod.setEntity(new StringEntity(payload));
 
             response = httpClient.execute(postMethod);
             resStr = EntityUtils.toString(response.getEntity());
             if (response.getStatusLine().toString().contains("200")) {
-                log.info(localLogPrefix + "Uploaded Metric (raw) successfully");
+                log.info(logPrefix + " Uploaded Metric (raw) successfully");
             } else {
-                throw new Exception("Bad response code when uploading Metric (raw): " + response.getStatusLine() + " - " + resStr);
+                throw new Exception(logPrefix + " Bad response code when uploading Metric (raw): " + response.getStatusLine() + " - " + resStr);
             }
         } finally {
             if (response != null) {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close uploadQualityDataRaw response");
+                    log.error(logPrefix + " Could not close uploadQualityDataRaw response");
                 }
             }
         }
     }
 
-    private static void attachHeaders(AbstractHttpMessage message) {
-        String syncId = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getSyncId();
-        message.setHeader("sync_token", Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getSyncToken());
+    private static void attachHeaders(AbstractHttpMessage message, Entry entry) {
+        String syncId = entry.getSyncId();
+        message.setHeader("sync_token", entry.getSyncToken());
         message.setHeader("sync_id", syncId);
         message.setHeader("instance_type", "JENKINS");
         message.setHeader("instance_id", syncId);
         message.setHeader("integration_id", syncId);
 
-        // Must include both _ and - headers because NGINX services don't pass _ headers by default and the original version of the Accelerate services expected the _ headers
-        message.setHeader("sync-token", Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getSyncToken());
+        // Must include both _ and - headers because NGINX services don't pass _ headers
+        // by default and the original version of the Accelerate services expected the _
+        // headers
+        message.setHeader("sync-token", entry.getSyncToken());
         message.setHeader("sync-id", syncId);
         message.setHeader("instance-type", "JENKINS");
         message.setHeader("instance-id", syncId);
         message.setHeader("integration-id", syncId);
     }
 
-    private static void postToSyncAPI(String url, String payload) {
+    private static void postToSyncAPI(String url, String payload, Entry entry) {
         CloudPublisher.ensureAsyncHttpClientInitialized();
-        String localLogPrefix= logPrefix + "uploadJobInfo ";
+        String logPrefix = "[HCL Accelerate " + entry.getBaseUrl() + "] CloudPublisher#uploadJobInfo";
         try {
             HttpPost postMethod = new HttpPost(url);
-            attachHeaders(postMethod);
+            attachHeaders(postMethod, entry);
             postMethod.setHeader("Content-Type", "application/json");
             StringEntity data = new StringEntity(payload);
             postMethod.setEntity(data);
@@ -383,36 +452,43 @@ public class CloudPublisher  {
             asyncHttpClient.execute(postMethod, new FutureCallback<HttpResponse>() {
                 public void completed(final HttpResponse response2) {
                     if (response2.getStatusLine().toString().contains("200")) {
-                        log.info(localLogPrefix + "Upload Job Information successfully");
+                        log.info(logPrefix + " Upload Job Information successfully");
                     } else {
-                        log.error(localLogPrefix + "Error: Upload Job has bad status code, response status " + response2.getStatusLine());
+                        log.error(logPrefix + " Error: Upload Job has bad status code, response status " + response2.getStatusLine());
                     }
                     try {
                         EntityUtils.toString(response2.getEntity());
                     } catch (JsonSyntaxException e) {
-                        log.error(localLogPrefix + "Invalid Json response, response: " + response2.getEntity());
+                        log.error(logPrefix + "Invalid Json response, response: " + response2.getEntity());
                     } catch (IOException e) {
-                        log.error(localLogPrefix + "Input/Output error, response: " + response2.getEntity());
+                        log.error(logPrefix + "Input/Output error, response: " + response2.getEntity());
                     }
                 }
 
                 public void failed(final Exception ex) {
-                    log.error(localLogPrefix + "Error: Failed to upload Job, response status " + ex.getMessage());
+                    log.error(logPrefix + "Error: Failed to upload Job, response status " + ex.getMessage());
                     ex.printStackTrace();
                     if (ex instanceof IllegalStateException) {
-                        log.error(localLogPrefix + "Please check if you have the access to the configured tenant.");
+                        log.error(logPrefix + "Please check if you have the access to the configured tenant.");
                     }
                 }
 
                 public void cancelled() {
-                    log.error(localLogPrefix + "Error: Upload Job cancelled.");
+                    log.error(logPrefix + "Error: Upload Job cancelled.");
                 }
             });
         } catch (UnsupportedEncodingException e) {
-            log.error("UnsupportedEncodingException trying to post job data", e);
+            log.error(logPrefix + "UnsupportedEncodingException trying to post job data", e);
         } catch (Exception e) {
-            log.error("Error trying to post job data", e);
+            log.error(logPrefix + "Error trying to post job data", e);
         }
+    }
+
+    public static String removeTrailingSlash(String url) {
+        if (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
     }
 
     public static boolean testConnection(String syncId, String syncToken, String baseUrl) {
@@ -428,7 +504,9 @@ public class CloudPublisher  {
             getMethod.setHeader("instance_id", syncId);
             getMethod.setHeader("integration_id", syncId);
 
-            // Must include both _ and - headers because NGINX services don't pass _ headers by default and the original version of the Accelerate services expected the _ headers
+            // Must include both _ and - headers because NGINX services don't pass _ headers
+            // by default and the original version of the Accelerate services expected the _
+            // headers
             getMethod.setHeader("sync-token", syncToken);
             getMethod.setHeader("sync-id", syncId);
             getMethod.setHeader("instance-type", "JENKINS");
@@ -439,30 +517,30 @@ public class CloudPublisher  {
 
             if (response.getStatusLine().toString().contains("200")) {
                 // get 200 response
-                log.info("Connected to Accelerate service successfully.");
+                log.info("Connected to Accelerate service successfully for : " + baseUrl);
                 return true;
             } else {
-                log.warn("Could not authenticate to Accelerate Services:");
+                log.warn("Could not authenticate to Accelerate Services for :" + baseUrl);
                 log.warn(response.toString());
             }
         } catch (IllegalStateException e) {
-            log.error("Could not connect to Accelerate:");
+            log.error("Could not connect to Accelerate for : " + baseUrl);
             log.error(e.getMessage());
         } catch (UnsupportedEncodingException e) {
-            log.error("Could not connect to Accelerate:");
+            log.error("Could not connect to Accelerate for : " + baseUrl);
             log.error(e.getMessage());
         } catch (ClientProtocolException e) {
-            log.error("Could not connect to Accelerate:");
+            log.error("Could not connect to Accelerate for : " + baseUrl);
             log.error(e.getMessage());
         } catch (IOException e) {
-            log.error("Could not connect to Accelerate:");
+            log.error("Could not connect to Accelerate for : " + baseUrl);
             log.error(e.getMessage());
         } finally {
             if (response != null) {
                 try {
                     response.close();
                 } catch (Exception e) {
-                    log.error("Could not close testconnection response");
+                    log.error("Could not close testconnection response for : " + baseUrl);
                 }
             }
         }

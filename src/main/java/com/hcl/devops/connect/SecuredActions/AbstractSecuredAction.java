@@ -34,7 +34,7 @@ public abstract class AbstractSecuredAction {
         }
 
         public Boolean isJenkinsAuthenticationError() {
-            if(this.jenkinsAuthenticationError != null) {
+            if (this.jenkinsAuthenticationError != null) {
                 return true;
             } else {
                 return false;
@@ -44,7 +44,8 @@ public abstract class AbstractSecuredAction {
 
     public void runAsJenkinsUser(ParamObj paramObj) {
 
-        StandardUsernamePasswordCredentials providedCredentials = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getCredentialsObj();
+        StandardUsernamePasswordCredentials providedCredentials = Jenkins.getInstance()
+                .getDescriptorByType(DevOpsGlobalConfiguration.class).getCredentialsObj();
 
         Authentication originalAuth = null;
 
@@ -54,12 +55,16 @@ public abstract class AbstractSecuredAction {
                 Authentication authenticatedAuth = authenticateCredentials(providedCredentials);
                 SecurityContextHolder.getContext().setAuthentication(authenticatedAuth);
             } catch (UsernameNotFoundException e) {
-                paramObj.setJenkinsAuthenticationError("Bad Jenkins Credentials: Accelerate configuration in Jenkins references Jenkins Credentials for a user that doesn't exist.");
-                System.out.println("Bad Jenkins Credentials: Wrong username provided in Accelerate configuration in Jenkins.");
+                paramObj.setJenkinsAuthenticationError(
+                    "Bad Jenkins Credentials: Accelerate configuration in Jenkins references Jenkins Credentials for a user that doesn't exist.");
+                System.out.println(
+                    "Bad Jenkins Credentials: Wrong username provided in Accelerate configuration in Jenkins.");
             } catch (AuthenticationException e) {
                 if ( e instanceof BadCredentialsException ) {
-                    paramObj.setJenkinsAuthenticationError("Bad Jenkins Credentials: Wrong username or password provided in Accelerate configuration in Jenkins.");
-                    System.out.println("Bad Jenkins Credentials: Wrong username or password provided in Accelerate configuration in Jenkins.");
+                    paramObj.setJenkinsAuthenticationError(
+                        "Bad Jenkins Credentials: Wrong username or password provided in Accelerate configuration in Jenkins.");
+                    System.out.println(
+                        "Bad Jenkins Credentials: Wrong username or password provided in Accelerate configuration in Jenkins.");
                 } else {
                     paramObj.setJenkinsAuthenticationError("Bad Jenkins Credentials");
                     System.out.println("Something else went wrong");
@@ -69,7 +74,7 @@ public abstract class AbstractSecuredAction {
             paramObj.setJenkinsAuthenticationError(NO_CREDENTIALS_PROVIDED);
         }
 
-        try{
+        try {
             run(paramObj);
         } finally {
             if (originalAuth != null) {
@@ -79,14 +84,15 @@ public abstract class AbstractSecuredAction {
 
     }
 
-    private Authentication authenticateCredentials(StandardUsernamePasswordCredentials providedCredentials) throws AuthenticationException {
+    private Authentication authenticateCredentials(StandardUsernamePasswordCredentials providedCredentials) 
+            throws AuthenticationException {
         SecurityRealm realm = Jenkins.getInstance().getSecurityRealm();
         SecurityRealm.SecurityComponents securityComponents = realm.createSecurityComponents();
 
         Authentication auth = getAuth(providedCredentials, realm);
 
         Authentication result = null;
-        if(auth != null) {
+        if (auth != null) {
             result = securityComponents.manager.authenticate(auth);
         }
 
@@ -98,7 +104,8 @@ public abstract class AbstractSecuredAction {
 
         userDetails.getAuthorities();
 
-        Authentication auth = new UsernamePasswordAuthenticationToken(providedCredentials.getUsername(), providedCredentials.getPassword().getPlainText(), userDetails.getAuthorities());
+        Authentication auth = new UsernamePasswordAuthenticationToken(providedCredentials.getUsername(), 
+                providedCredentials.getPassword().getPlainText(), userDetails.getAuthorities());
 
         return auth;
     }

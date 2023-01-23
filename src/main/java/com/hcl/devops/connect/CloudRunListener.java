@@ -42,53 +42,57 @@ import java.util.HashSet;
 @Extension
 public class CloudRunListener extends RunListener<Run> {
     public static final Logger log = LoggerFactory.getLogger(CloudRunListener.class);
-
+    public static final List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class)
+            .getEntries();
     @Override
     public void onStarted(Run run, TaskListener listener) {
-        if (Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).isConfigured()) {
-            CloudCause cloudCause = getCloudCause(run);
-            if (cloudCause == null) {
-                cloudCause = new CloudCause();
-            }
+        CloudCause cloudCause = getCloudCause(run);
+        if (cloudCause == null) {
+            cloudCause = new CloudCause();
+        }
 
-            AbstractJenkinsStatus status = null;
-            if (run instanceof WorkflowRun) {
-                status = new JenkinsPipelineStatus((WorkflowRun)run, cloudCause, null, listener, true, false);
-            } else {
-                status = new JenkinsJobStatus(run, cloudCause, null, listener, true, false);
+        AbstractJenkinsStatus status = null;
+        if (run instanceof WorkflowRun) {
+            status = new JenkinsPipelineStatus((WorkflowRun) run, cloudCause, null, listener, true, false);
+        } else {
+            status = new JenkinsJobStatus(run, cloudCause, null, listener, true, false);
+        }
+        status.setRunStatus(true);
+        for (Entry entry : entries) {
+            if (entry.isConfigured()) {
+                JSONObject statusUpdate = status.generate(false, entry);
+                CloudPublisher.uploadJobStatus(statusUpdate, entry);
             }
-            status.setRunStatus(true);
-            JSONObject statusUpdate = status.generate(false);
-            CloudPublisher.uploadJobStatus(statusUpdate);
         }
     }
 
     @Override
     public void onCompleted(Run run, TaskListener listener) {
-        if (Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).isConfigured()) {
-            CloudCause cloudCause = getCloudCause(run);
-            if (cloudCause == null) {
-                cloudCause = new CloudCause();
+        CloudCause cloudCause = getCloudCause(run);
+        if (cloudCause == null) {
+            cloudCause = new CloudCause();
+        }
+        AbstractJenkinsStatus status = null;
+        if (run instanceof WorkflowRun) {
+            status = new JenkinsPipelineStatus((WorkflowRun) run, cloudCause, null, listener, false, false);
+        } else {
+            status = new JenkinsJobStatus(run, cloudCause, null, listener, false, false);
+        }
+        status.setRunStatus(true);
+        for (Entry entry : entries) {
+            if (entry.isConfigured()) {
+                JSONObject statusUpdate = status.generate(true, entry);
+                CloudPublisher.uploadJobStatus(statusUpdate, entry);
             }
-
-            AbstractJenkinsStatus status = null;
-            if (run instanceof WorkflowRun) {
-                status = new JenkinsPipelineStatus((WorkflowRun)run, cloudCause, null, listener, false, false);
-            } else {
-                status = new JenkinsJobStatus(run, cloudCause, null, listener, false, false);
-            }
-            status.setRunStatus(true);
-            JSONObject statusUpdate = status.generate(true);
-            CloudPublisher.uploadJobStatus(statusUpdate);
         }
     }
 
     private CloudCause getCloudCause(Run run) {
         List<Cause> causes = run.getCauses();
 
-        for(Cause cause : causes) {
+        for (Cause cause : causes) {
             if (cause instanceof CloudCause ) {
-                return (CloudCause)cause;
+                return (CloudCause) cause;
             }
         }
 
