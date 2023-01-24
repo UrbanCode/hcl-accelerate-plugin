@@ -289,7 +289,7 @@ public class CloudSocketComponent {
             if (checkQueueAvailability(channel, queueName, entry)) {
                 channel.basicConsume(queueName, true, consumer);
             } else {
-                log.info(logPrefix + "Queue is not yet available, will attempt to reconect shortly...");
+                log.info(logPrefix + "Queue is not yet available, will attempt to reconnect shortly...");
                 queueIsAvailable = false;
             }
         }

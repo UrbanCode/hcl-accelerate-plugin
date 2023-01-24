@@ -454,7 +454,7 @@ public class CloudPublisher  {
                     if (response2.getStatusLine().toString().contains("200")) {
                         log.info(logPrefix + " Upload Job Information successfully");
                     } else {
-                        log.error(logPrefix + " Error: Upload Job has bad status code, response status " + response2.getStatusLine());
+                        log.error(logPrefix + " Error: Upload Job has bad status code,(if 401 check configuration properties) response status " + response2.getStatusLine());
                     }
                     try {
                         EntityUtils.toString(response2.getEntity());
@@ -466,10 +466,10 @@ public class CloudPublisher  {
                 }
 
                 public void failed(final Exception ex) {
-                    log.error(logPrefix + "Error: Failed to upload Job, response status " + ex.getMessage());
+                    log.error(logPrefix + "Error: Failed to upload Job,(check connection between jenkins and accelerate) response status " + ex.getMessage());
                     ex.printStackTrace();
                     if (ex instanceof IllegalStateException) {
-                        log.error(logPrefix + "Please check if you have the access to the configured tenant.");
+                        log.error(logPrefix + "Please check if you have the access to the configured tenant, also check connection between jenkins and accelerate");
                     }
                 }
 
