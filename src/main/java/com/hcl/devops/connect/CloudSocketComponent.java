@@ -189,8 +189,9 @@ public class CloudSocketComponent {
                     if (envelope.getRoutingKey().contains(".heartbeat")) {
                         String syncId = entry.getSyncId();
                         String syncToken = entry.getSyncToken();
+                        String apiToken = entry.getApiToken();
                         String url = CloudPublisher.removeTrailingSlash(entry.getBaseUrl());
-                        boolean connected = CloudPublisher.testConnection(syncId, syncToken, url);
+                        CloudPublisher.testConnection(syncId, syncToken, url, apiToken);
                     } else {
                         String message = new String(body, "UTF-8");
                         if (entry.getCheckDuplicate() == true) {
