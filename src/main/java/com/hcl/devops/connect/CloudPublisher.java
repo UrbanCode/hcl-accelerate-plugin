@@ -455,7 +455,7 @@ public class CloudPublisher  {
                     if (response2.getStatusLine().toString().contains("200")) {
                         log.info(logPrefix + " Upload Job Information successfully");
                     } else {
-                        log.error(logPrefix + " Error: Upload Job has bad status code,(if 401 check configuration properties) response status " + response2.getStatusLine());
+                        log.error(logPrefix + " Error: Upload Job has bad status code, response status " + response2.getStatusLine());
                     }
                     try {
                         EntityUtils.toString(response2.getEntity());
@@ -467,10 +467,10 @@ public class CloudPublisher  {
                 }
 
                 public void failed(final Exception ex) {
-                    log.error(logPrefix + "Error: Failed to upload Job,(check connection between jenkins and accelerate) response status " + ex.getMessage());
+                    log.error(logPrefix + "Error: Failed to upload Job, response status " + ex.getMessage());
                     ex.printStackTrace();
                     if (ex instanceof IllegalStateException) {
-                        log.error(logPrefix + "Please check if you have the access to the configured tenant, also check connection between jenkins and accelerate");
+                        log.error(logPrefix + "Please check if you have the access to the configured tenant.");
                     }
                 }
 
@@ -492,9 +492,8 @@ public class CloudPublisher  {
         return url;
     }
 
-    public static String graphqlTestCall(String syncId, String syncToken, String baseUrl, String apiToken) throws URISyntaxException {
+    public static String graphqlTestCall(String syncId, String syncToken, String baseUrl, String apiToken) {
         CloudPublisher.ensureHttpClientInitialized();
-        String resStr = "";
         String result = "";
         String baseApiUrl = CloudPublisher.removeTrailingSlash(baseUrl);
         String url = baseApiUrl + "/release-events-api/graphql/";
@@ -508,47 +507,44 @@ public class CloudPublisher  {
             getMethod.setHeader("Authorization", "UserAccessKey " + apiToken);
 
             graphResponse = httpClient.execute(getMethod);
-            resStr = EntityUtils.toString(graphResponse.getEntity());
-            JSONObject jsonresStr = JSONObject.fromObject(resStr);
             
             if (graphResponse.getStatusLine().toString().contains("200")) {
-                if (jsonresStr.has("data")) {
-                    JSONObject dataObject = jsonresStr.getJSONObject("data");
-                    if (dataObject.has("integrationById")) {
-                        JSONObject integrationByIdObj = dataObject.getJSONObject("integrationById");
-                        if (integrationByIdObj.isNullObject()) {
-                            log.info("Incorrect IntegrationId Value");
-                            result = "Incorrect IntegrationId Value";
-                            return result;
-                        } else if (!(integrationByIdObj.getString("token").equals(syncToken))) {
-                            log.info("Incorrect Integration Token Value");
-                            result = "Incorrect Integration Token Value";
-                            return result;
-                        } else {
-                            result = "successfull connection";
-                        }
-                    }
-                }
-            return result;
-
-            } else if(graphResponse.getStatusLine().toString().contains("401")){
-                log.error("Incorrect userAccessKey");
+                result = "successfull connection";
+                return result;
+            } else if (graphResponse.getStatusLine().toString().contains("401")) {
+                log.error("Incorrect userAccessKey " + baseApiUrl);
                 return "Incorrect userAccessKey";
             } else {
                 log.error("Could not able to connect to Accelerate for " + baseApiUrl);
                 return "Could not able to connect to Accelerate";
             }
+        } catch (IllegalStateException e) {
+            log.error("Could not connect to Accelerate for : " + baseApiUrl);
+            log.error(e.getMessage());
+            return "Could not connect to Accelerate";
+        } catch (UnsupportedEncodingException e) {
+            log.error("Could not connect to Accelerate for : " + baseApiUrl);
+            log.error(e.getMessage());
+            return "Could not connect to Accelerate";
+        } catch (ClientProtocolException e) {
+            log.error("Could not connect to Accelerate for : " + baseApiUrl);
+            log.error(e.getMessage());
+            return "Could not connect to Accelerate";
         } catch (IOException e) {
-            log.error("Could not connect to Accelerate:" + e.getMessage());
-            return "Could not connect to Accelerate:" + e.getMessage();
+            log.error("Could not connect to Accelerate:" + baseApiUrl);
+            log.error(e.getMessage());
+            return "Could not connect to Accelerate";
+        } catch (URISyntaxException e) {
+            log.error("Could not connect to Accelerate:" + baseApiUrl);
+            log.error(e.getMessage());
+            return "Could not connect to Accelerate";
         }
     }
 
     public static String testConnection(String syncId, String syncToken, String baseUrl, String apiToken) {
         CloudPublisher.ensureHttpClientInitialized();
         String url = getSyncApiUrl(baseUrl) + JENKINS_TEST_CONNECTION_URL;
-        String resTestStr = "";
-        CloseableHttpResponse testResponse = null;
+        CloseableHttpResponse response = null;
         String graphqlTestResponse = "";
         try {
             HttpGet getMethod = new HttpGet(url);
@@ -568,25 +564,21 @@ public class CloudPublisher  {
             getMethod.setHeader("instance-id", syncId);
             getMethod.setHeader("integration-id", syncId);
 
-            testResponse = httpClient.execute(getMethod);
-            resTestStr = EntityUtils.toString(testResponse.getEntity());
-            JSONObject testObject = JSONObject.fromObject(resTestStr);
-            
-            if (testResponse.getStatusLine().toString().contains("200")) {
-                try {
-                    graphqlTestResponse = graphqlTestCall(syncId, syncToken, baseUrl, apiToken);
-                } catch (URISyntaxException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
+            response = httpClient.execute(getMethod);
+
+            if (response.getStatusLine().toString().contains("200")) {
+                graphqlTestResponse = graphqlTestCall(syncId, syncToken, baseUrl, apiToken);
+                if (graphqlTestResponse.equals("successfull connection")) {
+                    log.info("Successful connection to Accelerate for baseUrl " + baseUrl);
+                    return graphqlTestResponse;
                 }
-                log.info("Successful connection to Accelerate for baseUrl " + baseUrl);
-                return graphqlTestResponse;
-            } else if (testResponse.getStatusLine().toString().contains("401") && testObject.has("message") && testObject.getString("message").equals("Authentication failed.")) {
-                log.error("Incorrect Integration ID / Integration token value.");
+            return graphqlTestResponse;
+            } else if (response.getStatusLine().toString().contains("401")) {
+                log.error("Incorrect Integration ID / Integration token value." + baseUrl);
                 return "Incorrect Integration ID / Integration token value.";
             } else {
                 log.error("Could not authenticate to Accelerate Services for :" + baseUrl);
-                log.error(testResponse.toString());
+                log.error(response.toString());
                 return "Could not able to connect to Accelerate";
             }
         } catch (IllegalStateException e) {
@@ -606,9 +598,9 @@ public class CloudPublisher  {
             log.error(e.getMessage());
             return "Could not connect to Accelerate";
         } finally {
-            if (testResponse != null) {
+            if (response != null) {
                 try {
-                    testResponse.close();
+                    response.close();
                 } catch (Exception e) {
                     log.error("Could not close testconnection response for : " + baseUrl);
                     return "Could not close testconnection response";
