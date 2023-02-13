@@ -510,8 +510,8 @@ public class CloudPublisher  {
             if (graphResponse.getStatusLine().toString().contains("200")) {
                 return "successfull connection";
             } else if (graphResponse.getStatusLine().toString().contains("401")) {
-                log.error("Incorrect userAccessKey " + baseApiUrl);
-                return "Incorrect userAccessKey";
+                log.error("Incorrect User Access Key " + baseApiUrl);
+                return "Incorrect User Access Key";
             } else {
                 log.error("Could not able to connect to Accelerate for " + baseApiUrl);
                 return "Could not able to connect to Accelerate";
