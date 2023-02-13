@@ -494,7 +494,6 @@ public class CloudPublisher  {
 
     public static String graphqlTestCall(String syncId, String syncToken, String baseUrl, String apiToken) {
         CloudPublisher.ensureHttpClientInitialized();
-        String resStr = "";
         String baseApiUrl = CloudPublisher.removeTrailingSlash(baseUrl);
         String url = baseApiUrl + "/release-events-api/graphql/";
         CloseableHttpResponse graphResponse = null;
@@ -507,10 +506,8 @@ public class CloudPublisher  {
             getMethod.setHeader("Authorization", "UserAccessKey " + apiToken);
 
             graphResponse = httpClient.execute(getMethod);
-            resStr = EntityUtils.toString(graphResponse.getEntity());
             
             if (graphResponse.getStatusLine().toString().contains("200")) {
-                System.out.println("Success graphql response " + resStr);
                 return "successfull connection";
             } else if (graphResponse.getStatusLine().toString().contains("401")) {
                 log.error("Incorrect userAccessKey " + baseApiUrl);
@@ -539,6 +536,15 @@ public class CloudPublisher  {
             log.error("Could not connect to Accelerate:" + baseApiUrl);
             log.error(e.getMessage());
             return "Could not connect to Accelerate";
+        } finally {
+            if (graphResponse != null) {
+                try {
+                    graphResponse.close();
+                } catch (Exception e) {
+                    log.error("Could not close graphql response for : " + baseApiUrl);
+                    return "Could not close graphql response";
+                }
+            }
         }
     }
 
