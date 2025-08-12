@@ -73,6 +73,10 @@ public class CheckGate extends Builder implements SimpleBuildStep {
         return em.getPipelinesEndpoint(entry);
     }
 
+    private List<Entry> getEntries() {
+        return Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+    }
+
     @Override
     public void perform(final Run<?, ?> build, FilePath workspace, Launcher launcher, final TaskListener listener)
             throws AbortException, InterruptedException, IOException, RuntimeException {
@@ -83,9 +87,8 @@ public class CheckGate extends Builder implements SimpleBuildStep {
         String versionId = envVars.expand(this.versionId);
         String fatal = envVars.expand(this.fatal);
 
-        List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
         Entry finalEntry = null;
-        for (Entry entry : entries) {
+        for (Entry entry : getEntries()) {
             try {
                 if (CloudPublisher.isPipeline(entry, pipelineId)) {
                     finalEntry = entry;
