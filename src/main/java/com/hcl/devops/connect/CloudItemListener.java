@@ -34,8 +34,9 @@ import com.cloudbees.hudson.plugins.folder.Folder;
 @Extension
 public class CloudItemListener extends ItemListener {
     public static final Logger log = LoggerFactory.getLogger(CloudItemListener.class);
-    public static final List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class)
-            .getEntries();
+    private List<Entry> getEntries() {
+        return Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+    }
     private String logPrefix = "[HCL Accelerate] CloudItemListener#";
 
     public CloudItemListener() {
@@ -66,7 +67,7 @@ public class CloudItemListener extends ItemListener {
         if (!(item instanceof Folder)) {
             JenkinsJob jenkinsJob = new JenkinsJob(item);
             log.info(ToStringBuilder.reflectionToString(jenkinsJob.toJson()) + " was " + phase);
-            for (Entry entry : entries) {
+            for (Entry entry : getEntries()) {
                 if (entry.isConfigured()) {
                     CloudPublisher.uploadJobInfo(jenkinsJob.toJson(), entry);
                 }
@@ -83,7 +84,7 @@ public class CloudItemListener extends ItemListener {
             if (!(anItem instanceof Folder)) {
                 JenkinsJob jenkinsJob = new JenkinsJob(anItem);
                 allJobs.add(jenkinsJob.toJson());
-                for (Entry entry : entries) {
+                for (Entry entry : getEntries()) {
                     if (entry.isConfigured()) {
                         CloudPublisher.uploadJobInfo(jenkinsJob.toJson(), entry);
                     }

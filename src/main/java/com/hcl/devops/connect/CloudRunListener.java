@@ -42,8 +42,9 @@ import java.util.HashSet;
 @Extension
 public class CloudRunListener extends RunListener<Run> {
     public static final Logger log = LoggerFactory.getLogger(CloudRunListener.class);
-    public static final List<Entry> entries = Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class)
-            .getEntries();
+    private List<Entry> getEntries() {
+        return Jenkins.getInstance().getDescriptorByType(DevOpsGlobalConfiguration.class).getEntries();
+    }
     @Override
     public void onStarted(Run run, TaskListener listener) {
         CloudCause cloudCause = getCloudCause(run);
@@ -58,7 +59,7 @@ public class CloudRunListener extends RunListener<Run> {
             status = new JenkinsJobStatus(run, cloudCause, null, listener, true, false);
         }
         status.setRunStatus(true);
-        for (Entry entry : entries) {
+        for (Entry entry : getEntries()) {
             if (entry.isConfigured()) {
                 JSONObject statusUpdate = status.generate(false, entry);
                 CloudPublisher.uploadJobStatus(statusUpdate, entry);
@@ -79,7 +80,7 @@ public class CloudRunListener extends RunListener<Run> {
             status = new JenkinsJobStatus(run, cloudCause, null, listener, false, false);
         }
         status.setRunStatus(true);
-        for (Entry entry : entries) {
+        for (Entry entry : getEntries()) {
             if (entry.isConfigured()) {
                 JSONObject statusUpdate = status.generate(true, entry);
                 CloudPublisher.uploadJobStatus(statusUpdate, entry);
